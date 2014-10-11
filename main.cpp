@@ -26,7 +26,7 @@ class Bullets : public sf::Drawable, public sf::Transformable{
 public:
     Bullets() {m_texture.loadFromFile("fireball.png");};
     void setSpeed(const double &i) {proj_speed = i;};
-    void update(bool &mouse_click,sf::Vector2f origin,const double angle);
+    void update(bool &mouse_click,sf::Vector2f origin,const double angle, sf::Time elapsed);
     void clear() {all_bullets.clear();};
 private:
     virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const
@@ -57,16 +57,21 @@ private:
     sf::Vector2f velocity;
     vector<shared_ptr<Bullet>> all_bullets;
 };
-void Bullets::update(bool &mouse_click,sf::Vector2f origin,const double angle) {
+void Bullets::update(bool &mouse_click,sf::Vector2f origin,const double angle, sf::Time elapsed) {
 
     if(mouse_click) {
         mouse_click = false;
         shared_ptr<Bullet> new_bullet= make_shared<Bullet>(origin,angle,m_texture);
         all_bullets.push_back(new_bullet);
     }
-    for(auto &i : all_bullets)  {
-        velocity = sf::Vector2f(cos(i->angle)*proj_speed,sin(i->angle)*proj_speed);
-        i->bullet.move(velocity.x,velocity.y);
+    for(auto i = all_bullets.begin(); i !=all_bullets.end();)  {
+        if((*i)->bullet.getPosition().x>800)        //if out of screen, cull bullet
+            i = all_bullets.erase(i);
+        else    {
+            velocity = sf::Vector2f(cos((*i)->angle)*proj_speed,sin((*i)->angle)*proj_speed);
+            (*i)->bullet.move(velocity.x*60*elapsed.asSeconds(),velocity.y*60*elapsed.asSeconds());
+            i++;
+        }
     }
 }
 class Enemy : public sf::Drawable , public sf::Transformable {
@@ -74,10 +79,11 @@ class Enemy : public sf::Drawable , public sf::Transformable {
      Enemy();
      bool checkHit(Bullets& bul);
      bool isDead() {return (health<=0);}
-     void update(Bullets& bul);
+     void update(Bullets& bul, sf::Time elapsed);
      void increaseHealth() {health++;};
      void increaseSpeed() {move_speed+=1;};
      void setColor(sf::Color color) {box.setFillColor(color);};
+     sf::Vector2f getPosition() {return box.getPosition();};
      sf::RectangleShape box;
 private:
     virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const
@@ -99,27 +105,24 @@ Enemy::Enemy() {
 bool Enemy::checkHit(Bullets& bul) {
     for(auto i = bul.all_bullets.begin(); i != bul.all_bullets.end();)
         if(box.getGlobalBounds().intersects((*i)->bullet.getGlobalBounds())) {
-
             i = bul.all_bullets.erase(i);
-
             return true;
         }
         else
             i++;
     return false;
 }
-void Enemy::update(Bullets& bul)    {
+void Enemy::update(Bullets& bul, sf::Time elapsed)    {
     if(checkHit(bul))   {
         health--;
     }
-    box.move(-move_speed,0);
+    box.move(-move_speed*elapsed.asSeconds()*60,0);
 }
 int main()
 {
     int score = 0;
     bool is_paused = true;
     Bullets test;
-    const double PI = 3.14159265;
     double player_speed = 5;
     int player_health = 15;
     double angle;
@@ -172,9 +175,10 @@ int main()
     sf::Time difficultyElapsed;
     sf::Text difficultyText;
     difficultyText.setFont(font);
-    difficultyText.setString("LEVEL : 0");
     difficultyText.setPosition((window.getSize().x-difficultyText.getGlobalBounds().width)/2,0);
     int currDifficulty = 0;
+    sf::Clock gameLogic;
+    sf::Time gameLogicElapsed;
     while(window.isOpen())
     {
         sf::Event event;
@@ -184,7 +188,7 @@ int main()
                 window.close();
             if(event.type == sf::Event::MouseButtonReleased)
                 mouse_press = true;
-            if(event.type == sf::Event::KeyPressed)
+            if(event.type == sf::Event::KeyPressed)    {
                 if(event.key.code == sf::Keyboard::Space)   {
                     if(player_health<=0)    {
                         player_health = 15;
@@ -192,13 +196,16 @@ int main()
                         currDifficulty = 0;
                         enemies.clear();
                         test.clear();
+                        difficultyText.setString("LEVEL : 0");
                         difficultyTimer.restart();
                     }
                     is_paused = !is_paused;
                 }
+            }
         }
         AnimationElapsed = AnimationClock.getElapsedTime();
         difficultyElapsed = difficultyTimer.getElapsedTime();
+        gameLogicElapsed = gameLogic.restart();
         if(AnimationElapsed.asMilliseconds()>33)   {
             if(currFrame>7) {
                 currFrame = 0;
@@ -282,15 +289,16 @@ int main()
                 clock.restart();
             }
             angle = atan2(mouseloc.y-player.getPosition().y,mouseloc.x-player.getPosition().x);
-            test.update(mouse_press,player.getPosition(),angle);
+            test.update(mouse_press,player.getPosition(),angle, gameLogicElapsed);
             window.clear(sf::Color::Black);
             window.draw(background);
             window.draw(player);
 
             for(auto i = enemies.begin();i!=enemies.end();)  {
-                (*i)->update(test);
+                (*i)->update(test,gameLogicElapsed);
                 window.draw(**i);
-                if((player.getGlobalBounds().intersects((*i)->box.getGlobalBounds())) || (*i)->isDead())   {
+                if((player.getGlobalBounds().intersects((*i)->box.getGlobalBounds())) || (*i)->isDead() ||
+                    (*i)->getPosition().x<0)   {
                    if(player.getGlobalBounds().intersects((*i)->box.getGlobalBounds()))
                         --player_health;
                    if((*i)->isDead())
