@@ -298,7 +298,7 @@ int main()
                 (*i)->update(test,gameLogicElapsed);
                 window.draw(**i);
                 if((player.getGlobalBounds().intersects((*i)->box.getGlobalBounds())) || (*i)->isDead() ||
-                    (*i)->getPosition().x<0)   {
+                    (*i)->getPosition().x<-50)   {       //culls enemies once no longer visible
                    if(player.getGlobalBounds().intersects((*i)->box.getGlobalBounds()))
                         --player_health;
                    if((*i)->isDead())
