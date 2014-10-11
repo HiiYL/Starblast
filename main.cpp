@@ -75,6 +75,9 @@ class Enemy : public sf::Drawable , public sf::Transformable {
      bool checkHit(Bullets& bul);
      bool isDead() {return (health<=0);}
      void update(Bullets& bul);
+     void increaseHealth() {health++;};
+     void increaseSpeed() {move_speed+=1;};
+     void setColor(sf::Color color) {box.setFillColor(color);};
      sf::RectangleShape box;
 private:
     virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const
@@ -84,7 +87,7 @@ private:
  private:
      int health = 1;
      sf::Texture m_texture;
-
+     int move_speed = 2;
 };
 Enemy::Enemy() {
     m_texture.loadFromFile("enemy.png");
@@ -95,7 +98,7 @@ Enemy::Enemy() {
 }
 bool Enemy::checkHit(Bullets& bul) {
     for(auto i = bul.all_bullets.begin(); i != bul.all_bullets.end();)
-        if(box.getGlobalBounds().contains((*i)->bullet.getPosition())) {
+        if(box.getGlobalBounds().intersects((*i)->bullet.getGlobalBounds())) {
 
             i = bul.all_bullets.erase(i);
 
@@ -109,7 +112,7 @@ void Enemy::update(Bullets& bul)    {
     if(checkHit(bul))   {
         health--;
     }
-    box.move(-2,0);
+    box.move(-move_speed,0);
 }
 int main()
 {
@@ -165,6 +168,13 @@ int main()
     sf::Texture background_texture;
     background_texture.loadFromFile("background.png");
     background.setTexture(background_texture);
+    sf::Clock difficultyTimer;
+    sf::Time difficultyElapsed;
+    sf::Text difficultyText;
+    difficultyText.setFont(font);
+    difficultyText.setString("LEVEL : 0");
+    difficultyText.setPosition((window.getSize().x-difficultyText.getGlobalBounds().width)/2,0);
+    int currDifficulty = 0;
     while(window.isOpen())
     {
         sf::Event event;
@@ -179,13 +189,16 @@ int main()
                     if(player_health<=0)    {
                         player_health = 15;
                         score = 0;
+                        currDifficulty = 0;
                         enemies.clear();
                         test.clear();
+                        difficultyTimer.restart();
                     }
                     is_paused = !is_paused;
                 }
         }
         AnimationElapsed = AnimationClock.getElapsedTime();
+        difficultyElapsed = difficultyTimer.getElapsedTime();
         if(AnimationElapsed.asMilliseconds()>33)   {
             if(currFrame>7) {
                 currFrame = 0;
@@ -222,30 +235,51 @@ int main()
             elapsed = clock.getElapsedTime();
             score_elapsed = score_clock.getElapsedTime();
             sf::Vector2f mouseloc = sf::Vector2f(sf::Mouse::getPosition(window));
-            if(mouseloc!=player.getPosition())  {
-                double result = atan2(mouseloc.y-player.getPosition().y,mouseloc.x-player.getPosition().x);
-                if(result < 0)  {
-                    result = 2*PI+result;
-                }
-                if(returnModulus(mouseloc.y-player.getPosition().y) < player_speed) {
-                   player.move(0,mouseloc.y-player.getPosition().y);
-                }
-                else
-                    player.move(0,sin(result)*player_speed);
+                //double result = atan2(mouseloc.y-player.getPosition().y,mouseloc.x-player.getPosition().x);
+                //if(result < 0)  {
+                //    result = 2*PI+result;
+                //}
+                //RIP MOVEMMENT ALGORITHM, YOU WILL BE MISSED
+                //player.setPosition(player.getPosition().x,mouseloc.y);
+            if(!((mouseloc.y<75 || mouseloc.y>525)&&(player.getPosition().y<75||player.getPosition().y>525))) //prevent user from hiding outside screen
+                player.move(0, (mouseloc.y-player.getPosition().y)/player_speed);
                 //if(returnModulus(mouseloc.x-player.getPosition().x) < player_speed) {
                 //    player.move(mouseloc.x-player.getPosition().x,0);
                 //}
                 //else
                 //    player.move(cos(result)*player_speed,0);
-            }
-            if(elapsed.asSeconds()>0.1)   {
-                enemies.push_back(make_shared<Enemy>());
-                clock.restart();
-            }
             if(score_elapsed.asSeconds()>1) {
                 score+=5;
-
                 score_clock.restart();
+            }
+            if(difficultyElapsed.asSeconds()>15)    {
+                        difficultyText.setString("LEVEL : " + patch::to_string(++currDifficulty));
+                        difficultyTimer.restart();
+            }
+            if(elapsed.asSeconds()>(0.5/(0.5*currDifficulty+1)))   {
+                shared_ptr<Enemy> currEnemy = make_shared<Enemy>();
+                for(int i = 0; i < currDifficulty ; i++)  {
+                    currEnemy->increaseHealth();
+                    currEnemy->increaseSpeed();
+                }
+                switch(currDifficulty)  {
+                        case 0:
+                            break;
+                        case 1:
+                            currEnemy->setColor(sf::Color::Green);
+                            break;
+                        case 2:
+                            currEnemy->setColor(sf::Color::Blue);
+                            break;
+                        case 3:
+                            currEnemy->setColor(sf::Color::Black);
+                            break;
+                        default:
+                            currEnemy->setColor(sf::Color::Cyan);
+                            break;
+                }
+                enemies.push_back(currEnemy);
+                clock.restart();
             }
             angle = atan2(mouseloc.y-player.getPosition().y,mouseloc.x-player.getPosition().x);
             test.update(mouse_press,player.getPosition(),angle);
@@ -266,6 +300,7 @@ int main()
                 else
                     i++;
             }
+            window.draw(test);
             if(player_health <= 0)
                 is_paused = true;
         }
@@ -279,8 +314,9 @@ int main()
             text.setString("             Press Spacebar to Begin \n Click to Shoot, Move Cursor to Move(duh) ");
         }
 
-        window.draw(test);
+
         window.draw(text);
+        window.draw(difficultyText);
         window.draw(score_text);
         window.draw(health);
         window.display();
