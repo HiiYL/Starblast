@@ -175,10 +175,12 @@ int main()
     sf::Time difficultyElapsed;
     sf::Text difficultyText;
     difficultyText.setFont(font);
+    difficultyText.setString("LEVEL : 0");
     difficultyText.setPosition((window.getSize().x-difficultyText.getGlobalBounds().width)/2,0);
     int currDifficulty = 0;
     sf::Clock gameLogic;
     sf::Time gameLogicElapsed;
+    double difficultyElapsedTime = 0;
     while(window.isOpen())
     {
         sf::Event event;
@@ -197,14 +199,14 @@ int main()
                         enemies.clear();
                         test.clear();
                         difficultyText.setString("LEVEL : 0");
-                        difficultyTimer.restart();
+                        difficultyElapsedTime = 0;
                     }
                     is_paused = !is_paused;
                 }
             }
         }
         AnimationElapsed = AnimationClock.getElapsedTime();
-        difficultyElapsed = difficultyTimer.getElapsedTime();
+
         gameLogicElapsed = gameLogic.restart();
         if(AnimationElapsed.asMilliseconds()>33)   {
             if(currFrame>7) {
@@ -238,6 +240,7 @@ int main()
         score_text.setString("SCORE : " + patch::to_string(score));
         health.setString("HEALTH : " + patch::to_string(player_health));
         if(!is_paused)  {
+            difficultyElapsed = difficultyTimer.restart();
             text.setString("");
             elapsed = clock.getElapsedTime();
             score_elapsed = score_clock.getElapsedTime();
@@ -259,9 +262,10 @@ int main()
                 score+=5;
                 score_clock.restart();
             }
-            if(difficultyElapsed.asSeconds()>15)    {
+            difficultyElapsedTime+=difficultyElapsed.asSeconds();
+            if(difficultyElapsedTime>15)    {
                         difficultyText.setString("LEVEL : " + patch::to_string(++currDifficulty));
-                        difficultyTimer.restart();
+                        difficultyElapsedTime = 0;
             }
             if(elapsed.asSeconds()>(0.5/(0.5*currDifficulty+1)))   {
                 shared_ptr<Enemy> currEnemy = make_shared<Enemy>();
